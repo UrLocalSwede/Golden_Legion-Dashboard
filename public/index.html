@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Golden Legion Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 0 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        h1, h2 {
+            text-align: center;
+        }
+        #guild-info {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        #members {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+        .member-card {
+            background: #fff;
+            border-radius: 8px;
+            padding: 10px;
+            width: 120px;
+            text-align: center;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+        }
+        .member-name {
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+        .member-rank {
+            font-size: 0.9em;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <h1>Golden Legion Dashboard</h1>
+    <div id="guild-info">Loading guild info...</div>
+    <div id="members"></div>
+
+    <script>
+        const GUILD_NAME = "Golden Legion";
+
+        async function loadGuild() {
+            const guildInfo = document.getElementById("guild-info");
+            const membersDiv = document.getElementById("members");
+
+            guildInfo.textContent = "Loading guild info...";
+            membersDiv.innerHTML = "";
+
+            try {
+                const res = await fetch(`/guild/${GUILD_NAME}`);
+                const data = await res.json();
+
+                if (!data.guild) {
+                    guildInfo.textContent = "Guild not found!";
+                    return;
+                }
+
+                const guild = data.guild;
+
+                // Display guild header info
+                guildInfo.innerHTML = `
+                    <h2>${guild.name}</h2>
+                    <p><strong>Level:</strong> ${guild.level} | <strong>Total Members:</strong> ${guild.members.length}</p>
+                `;
+
+                // Display members
+                membersDiv.innerHTML = guild.members.map(member => {
+                    const rank = member.rank ? member.rank : "Member";
+                    const name = member.username ? member.username : member.uuid;
+                    return `
+                        <div class="member-card">
+                            <div class="member-name">${name}</div>
+                            <div class="member-rank">${rank}</div>
+                        </div>
+                    `;
+                }).join("");
+
+            } catch (err) {
+                console.error(err);
+                guildInfo.textContent = "Error fetching guild data.";
+            }
+        }
+
+        // Load on page load
+        loadGuild();
+    </script>
+</body>
+</html>
