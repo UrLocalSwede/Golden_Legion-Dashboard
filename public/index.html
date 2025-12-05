@@ -69,19 +69,42 @@
 
                 const guild = data.guild;
 
-                // Display guild header info
                 guildInfo.innerHTML = `
                     <h2>${guild.name}</h2>
                     <p><strong>Level:</strong> ${guild.level} | <strong>Total Members:</strong> ${guild.members.length}</p>
                 `;
 
+                let members = guild.members;
+
+                // --- ADDED: rank priority + sorting ---
+                const rankPriority = {
+                    "Guild Master": 1,
+                    "Major": 2,
+                    "Captain": 3,
+                    "Lieutenant": 4,
+                    "Sergeant": 5,
+                    "Soldier": 6,
+                    "Member": 7
+                };
+
+                members.sort((a, b) => {
+                    if (a.online && !b.online) return -1;
+                    if (!a.online && b.online) return 1;
+
+                    const rankA = rankPriority[a.rank] || 6;
+                    const rankB = rankPriority[b.rank] || 6;
+
+                    return rankA - rankB;
+                });
+
                 // Display members
-                membersDiv.innerHTML = guild.members.map(member => {
+                membersDiv.innerHTML = members.map(member => {
                     const rank = member.rank ? member.rank : "Member";
                     const name = member.username ? member.username : member.uuid;
+                    const onlineDot = member.online ? '<span style="color:green"> ●</span>' : '';
                     return `
                         <div class="member-card">
-                            <div class="member-name">${name}</div>
+                            <div class="member-name">${name}${onlineDot}</div>
                             <div class="member-rank">${rank}</div>
                         </div>
                     `;
@@ -93,8 +116,8 @@
             }
         }
 
-        // Load on page load
         loadGuild();
+        setInterval(loadGuild, 1200000);
     </script>
 </body>
 </html>
