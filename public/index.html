@@ -49,6 +49,8 @@
     <div id="members"></div>
 
     <script>
+        const GUILD_NAME = "Golden Legion";
+
         async function loadGuild() {
             const guildInfo = document.getElementById("guild-info");
             const membersDiv = document.getElementById("members");
@@ -57,28 +59,48 @@
             membersDiv.innerHTML = "";
 
             try {
-                const res = await fetch('/guild-members');
+                const res = await fetch(`/guild/${GUILD_NAME}`);
+                const data = await res.json();
 
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-                const members = await res.json();
-
-                if (!Array.isArray(members) || !members.length) {
-                    guildInfo.textContent = "Guild not found or empty!";
+                if (!data.guild) {
+                    guildInfo.textContent = "Guild not found!";
                     return;
                 }
 
-                // Display basic guild info
+                const guild = data.guild;
+
                 guildInfo.innerHTML = `
-                    <h2>Golden Legion</h2>
-                    <p><strong>Total Members:</strong> ${members.length}</p>
+                    <h2>${guild.name}</h2>
+                    <p><strong>Level:</strong> ${guild.level} | <strong>Total Members:</strong> ${guild.members.length}</p>
                 `;
 
-                // Display members safely
+                let members = guild.members;
+
+                // --- ADDED: rank priority + sorting ---
+                const rankPriority = {
+                    "Guild Master": 1,
+                    "Major": 2,
+                    "Captain": 3,
+                    "Lieutenant": 4,
+                    "Sergeant": 5,
+                    "Soldier": 6,
+                    "Member": 7
+                };
+
+                members.sort((a, b) => {
+                    if (a.online && !b.online) return -1;
+                    if (!a.online && b.online) return 1;
+
+                    const rankA = rankPriority[a.rank] || 6;
+                    const rankB = rankPriority[b.rank] || 6;
+
+                    return rankA - rankB;
+                });
+
+                // Display members
                 membersDiv.innerHTML = members.map(member => {
-                    if (!member) return '';
-                    const rank = member.rank || "Member";
-                    const name = member.username || member.uuid;
+                    const rank = member.rank ? member.rank : "Member";
+                    const name = member.username ? member.username : member.uuid;
                     const onlineDot = member.online ? '<span style="color:green"> ●</span>' : '';
                     return `
                         <div class="member-card">
@@ -89,15 +111,13 @@
                 }).join("");
 
             } catch (err) {
-                console.error('Failed to load members:', err);
-                guildInfo.textContent = "Error fetching guild members.";
+                console.error(err);
+                guildInfo.textContent = "Error fetching guild data.";
             }
         }
 
-        // Load on page load
         loadGuild();
-        // Refresh every 2 minutes
-        setInterval(loadGuild, 120000);
+        setInterval(loadGuild, 1200000);
     </script>
 </body>
 </html>
