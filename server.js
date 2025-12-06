@@ -4,7 +4,7 @@ const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
-const PORT = 3000;
+const PORT = 8020;
 
 app.use(express.static("public"));
 
@@ -173,5 +173,5 @@ app.get('/update-online', async (req, res) => {
 
 // --- Start server ---
 app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+    console.log(`Server is runnings on http://localhost:${PORT}`);
 });
