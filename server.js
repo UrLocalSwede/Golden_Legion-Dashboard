@@ -47,33 +47,35 @@ async function getUsernameFromUUID(uuid) {
     }
 }
 
-// --- Online status cache (updated every 20 minutes) ---
-let onlineStatusCache = new Map();
+// --- Online status & store rank cache (updated every 20 minutes) ---
+let onlineStatusCache = new Map(); // uuid => { online: bool, storeRank: string }
 let lastOnlineUpdate = 0;
 const ONLINE_UPDATE_INTERVAL = 20 * 60 * 1000; // 20 minutes
 
 async function updateOnlineStatus(guildMembers) {
     const now = Date.now();
-    if (now - lastOnlineUpdate < ONLINE_UPDATE_INTERVAL) {
-        return;
-    }
+    if (now - lastOnlineUpdate < ONLINE_UPDATE_INTERVAL) return;
 
-    console.log('Updating online status cache...');
+    console.log('Updating online status & store rank cache...');
     await Promise.all(
         guildMembers.map(async (member) => {
             try {
                 const res = await axios.get(`https://api.hypixel.net/player?key=${API_KEY}&uuid=${member.uuid}`);
                 const player = res.data.player;
+
                 const online = player && player.lastLogin && (!player.lastLogout || player.lastLogin > player.lastLogout);
-                onlineStatusCache.set(member.uuid, online);
+                const storeRank = player?.rank || player?.newPackageRank || player?.packageRank || "Member";
+
+                onlineStatusCache.set(member.uuid, { online, storeRank });
             } catch (err) {
                 console.error(`Failed to fetch status for ${member.uuid}:`, err.message);
-                onlineStatusCache.set(member.uuid, false);
+                onlineStatusCache.set(member.uuid, { online: false, storeRank: "Member" });
             }
         })
     );
 
     lastOnlineUpdate = Date.now();
+    console.log(`Online status & store rank cache updated at: ${new Date(lastOnlineUpdate).toLocaleString()}`);
 }
 
 // --- Fetch guild members with usernames ---
@@ -94,7 +96,7 @@ async function getGuildMembers() {
             })
         );
 
-        // Update online cache asynchronously
+        // Update online status & store rank asynchronously
         updateOnlineStatus(members).catch(console.error);
 
         return members;
@@ -109,42 +111,46 @@ app.get('/', (req, res) => {
     res.send('Website Running...');
 });
 
+// Guild info with online & store rank
 app.get("/guild/:name", async (req, res) => {
     try {
         const response = await axios.get(`https://api.hypixel.net/v2/guild?name=${req.params.name}&key=${API_KEY}`);
         const guild = response.data.guild;
         if (!guild) return res.json({ guild: null });
 
-        const membersWithNames = await Promise.all(
+        const membersWithInfo = await Promise.all(
             guild.members.map(async (member) => {
                 const username = await getUsernameFromUUID(member.uuid);
-                const online = onlineStatusCache.get(member.uuid) || false;
-                return { ...member, username, online };
+                const cached = onlineStatusCache.get(member.uuid) || { online: false, storeRank: "Member" };
+                return { ...member, username, ...cached };
             })
         );
 
-        res.json({ guild: { ...guild, members: membersWithNames } });
+        res.json({ guild: { ...guild, members: membersWithInfo } });
     } catch (err) {
         console.error(err.response?.data || err.message);
         res.status(500).json({ error: err.response?.data || err.message });
     }
 });
 
+// Full guild members list
 app.get('/guild-members', async (req, res) => {
     try {
         const guildMembers = await getGuildMembers();
-        const membersWithStatus = guildMembers.map(member => ({
-            ...member,
-            online: onlineStatusCache.get(member.uuid) || false
-        }));
-        res.json(membersWithStatus);
+
+        const membersWithInfo = guildMembers.map(member => {
+            const cached = onlineStatusCache.get(member.uuid) || { online: false, storeRank: "Member" };
+            return { ...member, ...cached };
+        });
+
+        res.json(membersWithInfo);
     } catch (err) {
         console.error(err);
         res.status(500).send('Error fetching members');
     }
 });
 
-// Force online status update
+// Force online & store rank update
 app.get('/update-online', async (req, res) => {
     try {
         const guildMembers = await getGuildMembers();
@@ -154,22 +160,22 @@ app.get('/update-online', async (req, res) => {
                     const res = await axios.get(`https://api.hypixel.net/player?key=${API_KEY}&uuid=${member.uuid}`);
                     const player = res.data.player;
                     const online = player && player.lastLogin && (!player.lastLogout || player.lastLogin > player.lastLogout);
-                    onlineStatusCache.set(member.uuid, online);
+                    const storeRank = player?.rank || player?.newPackageRank || player?.packageRank || "Member";
+                    onlineStatusCache.set(member.uuid, { online, storeRank });
                 } catch (err) {
                     console.error(`Failed to fetch status for ${member.uuid}:`, err.message);
-                    onlineStatusCache.set(member.uuid, false);
+                    onlineStatusCache.set(member.uuid, { online: false, storeRank: "Member" });
                 }
             })
         );
 
         lastOnlineUpdate = Date.now();
-        res.send('Online status manually updated!');
+        res.send('Online status & store rank manually updated!');
     } catch (err) {
         console.error(err);
         res.status(500).send('Failed to update online status');
     }
 });
-
 
 // --- Start server ---
 app.listen(PORT, () => {
