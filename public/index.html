@@ -3,121 +3,222 @@
 <head>
     <meta charset="UTF-8">
     <title>Golden Legion Dashboard</title>
+
     <style>
+
+        @font-face {
+        font-family: 'Minecraftia';
+        src: url('fonts/Minecraftia-Regular.ttf') format('truetype');
+        font-weight: normal;
+        font-style: normal;
+        }
+
+        :root {
+
+          --window-width: 100vw;
+          --window-height: 100vh;
+
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
+            font-family: 'Minecraftia', monospace;
+            max-width: calc(var(--window-width) * 0.8);
             margin: 40px auto;
             padding: 0 20px;
             background-color: #f5f5f5;
             color: #333;
         }
+
+        .parent {
+          display: flex;
+          gap: calc(var(--window-width) * 0.03);
+        }
+
         h1, h2 {
             text-align: center;
         }
+
         #guild-info {
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
         }
+
+        .member-parent {
+          display: flex;
+          flex-direction: column;
+        }
+
+        #member-search {
+          width: calc(var(--window-width) * 0.13); 
+          padding: 8px;
+          margin-bottom: 10px; 
+          margin-right: 10px;
+          border-radius: 5px; 
+          border: 1px solid #ccc;
+          align-self: center;
+        }
+
         #members {
             display: flex;
-            flex-wrap: wrap;
+            flex-direction: column;
+            height: 800px;
+            overflow-y: auto;
             gap: 10px;
-            justify-content: center;
+            width: calc(var(--window-width) * 0.2);
+            align-items: center;
         }
+
         .member-card {
             background: #fff;
             border-radius: 8px;
             padding: 10px;
-            width: 120px;
+            width: calc(var(--window-width) * 0.13);
             text-align: center;
             box-shadow: 0 3px 8px rgba(0,0,0,0.1);
         }
+
         .member-name {
             font-weight: bold;
             margin-bottom: 3px;
         }
+
         .member-rank {
             font-size: 0.9em;
             color: #555;
         }
+
+        .feed {
+          align-self: center;
+          border: 2px solid #333;
+          padding: 10px;
+          border-radius: 8px;
+          height: calc(var(--window-height) * 0.7);
+          width: calc(var(--window-width) * 0.8);
+        }
     </style>
 </head>
 <body>
-    <h1>Golden Legion Dashboard</h1>
+
+    <h1> <a href="https://discord.com/invite/FssyYfbkSv" style="color: inherit; text-decoration: none;" target="_blank">Golden Legion</a> Dashboard</h1>
     <div id="guild-info">Loading guild info...</div>
-    <div id="members"></div>
 
+    <div class="parent">
+
+      <div class="feed">
+        <label id="feedlabl">Your feed</label>
+      </div>
+
+      <div class="member-parent">
+        <input type="text" id="member-search" placeholder="Search members...">
+        <div id="members"></div>
+      </div>
+      
+
+    </div>
+    
     <script>
-        const GUILD_NAME = "Golden Legion";
+const GUILD_NAME = "Golden Legion";
+let allMembers = []; // store all members for filtering
 
-        async function loadGuild() {
-            const guildInfo = document.getElementById("guild-info");
-            const membersDiv = document.getElementById("members");
+async function loadGuild() {
+    const guildInfo = document.getElementById("guild-info");
+    const membersDiv = document.getElementById("members");
+    const searchInput = document.getElementById("member-search");
 
-            guildInfo.textContent = "Loading guild info...";
-            membersDiv.innerHTML = "";
+    guildInfo.textContent = "Loading guild info...";
+    membersDiv.innerHTML = "";
 
-            try {
-                const res = await fetch(`/guild/${GUILD_NAME}`);
-                const data = await res.json();
+    try {
+        const res = await fetch(`/guild/${GUILD_NAME}`);
+        const data = await res.json();
 
-                if (!data.guild) {
-                    guildInfo.textContent = "Guild not found!";
-                    return;
-                }
-
-                const guild = data.guild;
-
-                guildInfo.innerHTML = `
-                    <h2>${guild.name}</h2>
-                    <p><strong>Level:</strong> ${guild.level} | <strong>Total Members:</strong> ${guild.members.length}</p>
-                `;
-
-                let members = guild.members;
-
-                // --- ADDED: rank priority + sorting ---
-                const rankPriority = {
-                    "Guild Master": 1,
-                    "Major": 2,
-                    "Captain": 3,
-                    "Lieutenant": 4,
-                    "Sergeant": 5,
-                    "Soldier": 6,
-                    "Member": 7
-                };
-
-                members.sort((a, b) => {
-                    if (a.online && !b.online) return -1;
-                    if (!a.online && b.online) return 1;
-
-                    const rankA = rankPriority[a.rank] || 6;
-                    const rankB = rankPriority[b.rank] || 6;
-
-                    return rankA - rankB;
-                });
-
-                // Display members
-                membersDiv.innerHTML = members.map(member => {
-                    const rank = member.rank ? member.rank : "Member";
-                    const name = member.username ? member.username : member.uuid;
-                    const onlineDot = member.online ? '<span style="color:green"> ●</span>' : '';
-                    return `
-                        <div class="member-card">
-                            <div class="member-name">${name}${onlineDot}</div>
-                            <div class="member-rank">${rank}</div>
-                        </div>
-                    `;
-                }).join("");
-
-            } catch (err) {
-                console.error(err);
-                guildInfo.textContent = "Error fetching guild data.";
-            }
+        if (!data.guild) {
+            guildInfo.textContent = "Guild not found!";
+            return;
         }
 
-        loadGuild();
-        setInterval(loadGuild, 1200000);
+        const guild = data.guild;
+
+        guildInfo.innerHTML = `
+            <p><strong>Level:</strong> ${guild.level} | <strong>Total Members:</strong> ${guild.members.length}</p>
+        `;
+
+        // Sort members: online first, then by rank
+        const rankPriority = {
+            "Guild Master": 1,
+            "Major": 2,
+            "Captain": 3,
+            "Lieutenant": 4,
+            "Sergeant": 5,
+            "Soldier": 6,
+            "Member": 7
+        };
+
+        allMembers = guild.members.sort((a, b) => {
+            if (a.online && !b.online) return -1;
+            if (!a.online && b.online) return 1;
+
+            const rankA = rankPriority[a.rank] || 6;
+            const rankB = rankPriority[b.rank] || 6;
+
+            return rankA - rankB;
+        });
+
+        renderMembers(allMembers);
+
+        // --- Search functionality ---
+        searchInput.addEventListener("input", () => {
+            const query = searchInput.value.toLowerCase();
+            const filtered = allMembers.filter(member =>
+                (member.username || member.uuid).toLowerCase().includes(query)
+            );
+            renderMembers(filtered);
+        });
+
+    } catch (err) {
+        console.error(err);
+        guildInfo.textContent = "Error fetching guild data.";
+    }
+}
+
+const storeRankColors = {
+    "VIP": "limegreen",
+    "VIP+": "limegreen",
+    "MVP": "aqua",
+    "MVP+": "deepskyblue",
+    "MVP++": "gold",
+    "": "black" // default
+};
+
+function formatStoreRank(rank) {
+    if (!rank) return "";
+    return rank
+        .replace("_PLUS_PLUS", "++")
+        .replace("_PLUS", "+")
+        .replace("_", " ")
+        .replace("Member", " ");
+}
+
+// Function to render member cards
+function renderMembers(members) {
+    const membersDiv = document.getElementById("members");
+    membersDiv.innerHTML = members.map(member => {
+        const storeRank = formatStoreRank(member.storeRank || "");
+        const color = storeRankColors[storeRank] || "black";
+        const rank = member.rank || "Member";
+        const name = member.username || member.uuid;
+        const onlineDot = member.online ? '<span style="color:green"> ●</span>' : '';
+        return `
+            <div class="member-card">
+                <div class="member-name" style="color:${color}">${storeRank ? storeRank + " " : ""}${name}${onlineDot}</div>
+                <div class="member-rank">${rank}</div>
+            </div>
+        `;
+    }).join("");
+}
+
+loadGuild();
+setInterval(loadGuild, 1200000); // refresh every 20 minutes
     </script>
 </body>
 </html>
