@@ -1,14 +1,32 @@
 const express = require('express');
 const axios = require('axios');
 const fs = require('fs');
+
+
 require('dotenv').config();
 
+const db = require("./database");
+
 const app = express();
+const session = require("express-session");
+
 const PORT = 8020;
 
 app.use(express.static("public"));
 
 const API_KEY = process.env.HypixelApiKey;
+const CLIENT_ID = process.env.DISCORD_CLIENT_ID;
+const CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
+const REDIRECT_URI = "http://localhost:8020/auth/discord/callback";
+
+app.use(session({
+    secret: "MattIsHandsome",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        maxAge: 1000 * 60 * 60 * 24 // 1 day
+    }
+}));
 
 // --- Persistent username cache ---
 const cacheFile = './cache.json';
@@ -106,6 +124,11 @@ async function getGuildMembers() {
     }
 }
 
+function requireLogin(req, res, next) {
+    if (!req.session.user) return res.status(401).send("Nope");
+    next();
+}
+
 // --- Routes ---
 app.get('/', (req, res) => {
     res.send('Website Running...');
@@ -175,6 +198,105 @@ app.get('/update-online', async (req, res) => {
         console.error(err);
         res.status(500).send('Failed to update online status');
     }
+});
+
+app.get("/auth/discord", (req, res) => {
+    const url = `https://discord.com/api/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=identify`;
+
+    res.redirect(url);
+});
+
+app.get("/auth/discord/callback", async (req, res) => {
+    const code = req.query.code;
+    if (!code) return res.send("No code provided");
+
+    try {
+        // Get token
+        const tokenRes = await axios.post(
+            "https://discord.com/api/oauth2/token",
+            new URLSearchParams({
+                client_id: CLIENT_ID,
+                client_secret: CLIENT_SECRET,
+                grant_type: "authorization_code",
+                code,
+                redirect_uri: REDIRECT_URI
+            }),
+            {
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded"
+                }
+            }
+        );
+
+        const accessToken = tokenRes.data.access_token;
+
+        // Get Discord user
+        const userRes = await axios.get("https://discord.com/api/users/@me", {
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            }
+        });
+
+        const user = userRes.data;
+
+        // SAVE TO DATABASE (this is the important part)
+        db.run(
+            `
+            INSERT INTO users (id, username, avatar, created_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                username = excluded.username,
+                avatar = excluded.avatar
+            `,
+            [
+                user.id,
+                user.username,
+                user.avatar,
+                Date.now()
+            ]
+        );
+
+        console.log("Saved user:", user.username);
+
+        req.session.user = {
+            id: user.id,
+            username: user.username,
+            avatar: user.avatar
+        };
+
+        return res.redirect("/profile")
+
+        res.send(`Welcome ${user.username}`);
+    } catch (err) {
+        console.error(err.response?.data || err.message);
+        return res.send("Login failed");
+    }
+});
+
+app.get("/profile", (req, res) => {
+    if (!req.session.user) {
+        return res.redirect("/auth/discord");
+    }
+
+    res.send(`
+        <h1>Welcome ${req.session.user.username}</h1>
+        <img src="https://cdn.discordapp.com/avatars/${req.session.user.id}/${req.session.user.avatar}.png" />
+        <br>
+        <a href="/logout">Logout</a>
+    `);
+});
+
+app.get("/logout", (req, res) => {
+    req.session.destroy(() => {
+        res.redirect("/");
+    });
+});
+
+app.get("/users", requireLogin, (req, res) => {
+    db.all("SELECT * FROM users", [], (err, rows) => {
+        if (err) return res.status(500).send(err.message);
+        res.json(rows);
+    });
 });
 
 // --- Start server ---
