@@ -88,13 +88,26 @@
         }
 
         .feed {
-          align-self: center;
-          border: 2px solid #333;
-          padding: 10px;
-          border-radius: 8px;
-          height: calc(var(--window-height) * 0.7);
-          width: calc(var(--window-width) * 0.8);
+            display: flex;
+            flex-direction: column;
+            align-self: center;
+            border: 2px solid #333;
+            padding: 10px;
+            border-radius: 8px;
+            height: calc(var(--window-height) * 0.7);
+            width: calc(var(--window-width) * 0.8);
         }
+
+        .sendParent {
+            display: flex;
+            gap: 5px;
+            justify-content: space-between;
+        }
+        
+        #sendFeed {
+            flex: 1;
+        }
+
     </style>
 </head>
 <body>
@@ -103,18 +116,31 @@
     <div id="guild-info">Loading guild info...</div>
 
     <div class="parent">
+        <div class="feed">
+            <div class="sendParent">
+                <input type="text" id="sendFeed" placeholder="Share something!">
+                <button onclick="getUserInput()" class="submitFeed">Submit</button>
+            </div>
 
-      <div class="feed">
-        <label id="feedlabl">Your feed</label>
-      </div>
+            <div id="feedContainer">
+            </div>
+        </div>
+            
+                
+            
+            
+        
 
-      <div class="member-parent">
-        <input type="text" id="member-search" placeholder="Search members...">
-        <div id="members"></div>
-      </div>
+        <div class="member-parent">
+            <input type="text" id="member-search" placeholder="Search members...">
+            <div id="members"></div>
+        </div>
+    </div>
+
+        
       
 
-    </div>
+    
     
     <script>
 const GUILD_NAME = "Golden Legion";
@@ -140,7 +166,7 @@ async function loadGuild() {
         const guild = data.guild;
 
         guildInfo.innerHTML = `
-            <p><strong>Level:</strong> ${guild.level} | <strong>Total Members:</strong> ${guild.members.length}</p>
+            <p><strong>Total Members:</strong> ${guild.members.length} | <strong>Online Members:</strong></p>
         `;
 
         // Sort members: online first, then by rank
@@ -215,6 +241,20 @@ function renderMembers(members) {
             </div>
         `;
     }).join("");
+}
+
+function getUserInput() {
+    var sendFeed = document.getElementById("sendFeed").value
+    updateFeed(sendFeed)
+}
+
+function updateFeed(inputByUser) {
+    const feed = document.getElementById("feedContainer")
+    const newLabel = document.createElement("p")
+
+    newLabel.textContent = inputByUser
+
+    feed.appendChild(newLabel)
 }
 
 loadGuild();
